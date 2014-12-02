@@ -31,6 +31,7 @@ boolean touchStates[12]; // to keep track of the previous touch states
 /* up to 4 chips per Wire connection */
 #define N_SENSOR_CHIPS 1
 
+/* todo: two banks of sensor chips, on different i2c buses */
 int MPR_addresses[N_SENSOR_CHIPS] = { 0x5A
 				      // , 0x5B, 0x5C, 0x5D
 }
