@@ -34,7 +34,7 @@ boolean touchStates[12]; // to keep track of the previous touch states
 /* todo: two banks of sensor chips, on different i2c buses */
 int MPR_addresses[N_SENSOR_CHIPS] = { 0x5A
 				      // , 0x5B, 0x5C, 0x5D
-}
+};
 
 void
 setup() {
@@ -73,7 +73,7 @@ readTouchInputs() {
       uint16_t touched = ((MSB << 8) | LSB); // 16 bits that make up the touch states
 
       for (int electrode=0; electrode < 12; electrode++) {  // Check what electrodes were pressed
-	int key = (sensor * 12) + electrode
+	int key = (sensor * 12) + electrode;
 	if (touched & (1<<electrode)) {
 
 	  if (touchStates[key] == 0) {
