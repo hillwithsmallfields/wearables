@@ -52,11 +52,56 @@ setup() {
   for (int sensor = 0; sensor < N_SENSOR_CHIPS; sensor++) {
     setup_one_mpr121(MPR_addresses[sensor]);
   }
+
+  switch_to_SPP();
+
+  Serial.print("Finished setup\n");
+
+  pinMode(13, OUTPUT);
+}
+
+static int in_command = 0;
+
+void
+switch_to_command() {
+  if (!in_command) {
+    Serial.print("$$$\r");
+    in_command = 1;
+  }
+}
+
+void
+switch_to_data() {
+  if (in_command) {
+    Serial.print("---\r");
+    in_command = 0;
+  }
+}
+
+void
+switch_to_SPP() {
+  switch_to_command();
+  Serial.print("S~,0\rR,1\r");
+  delay(1000);
+  in_command = 0;
+}
+
+void
+switch_to_HID() {
+  switch_to_command();
+  Serial.print("S~,6\rR,1\r");
+  delay(1000);
+  in_command = 0;
 }
 
 void
 loop(){
   readTouchInputs();
+  if (touchStates[0] != 0) {
+    digitalWrite(13, HIGH);
+  } else {
+    digitalWrite(13, LOW);
+  }
 }
 
 void
@@ -71,14 +116,14 @@ readTouchInputs() {
       byte MSB = Wire.read();
 
       uint16_t touched = ((MSB << 8) | LSB); // 16 bits that make up the touch states
-
+      
       for (int electrode=0; electrode < 12; electrode++) {  // Check what electrodes were pressed
 	int key = (sensor * 12) + electrode;
 	if (touched & (1<<electrode)) {
 
 	  if (touchStates[key] == 0) {
 	    // key was just touched
-	    Serial.print("key "); Serial.print(key); Serial.println(" was just touched");
+	    Serial.print("key "); Serial.print(key); Serial.println(" was just touched\n");
 
 	  } else if (touchStates[key] == 1) {
 	    // key is still being touched
@@ -88,7 +133,7 @@ readTouchInputs() {
 	} else {
 	  if (touchStates[key] == 1) {
 	    // key is no longer being touched
-	    Serial.print("key "); Serial.print(key); Serial.println(" is no longer being touched");
+	    Serial.print("key "); Serial.print(key); Serial.println(" is no longer being touched\n");
 	  }
 	  touchStates[key] = 0;
 	}
