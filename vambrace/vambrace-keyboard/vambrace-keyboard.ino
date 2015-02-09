@@ -21,9 +21,17 @@
  Public domain software from SparkFun also used in the base.
 */
 
+#define debug 1
+
 #include "mpr121.h"
 /* todo: probably switch to http://todbot.com/blog/2010/09/25/softi2cmaster-add-i2c-to-any-arduino-pins */
 #include <Wire.h>
+
+#ifdef debug
+#include <SoftwareSerial.h>
+
+SoftwareSerial debugSerial(10, 11); // RX, TX
+#endif
 
 int irqpin = 2;  // Digital 2
 boolean touchStates[12]; // to keep track of the previous touch states
@@ -31,19 +39,44 @@ boolean touchStates[12]; // to keep track of the previous touch states
 /* up to 4 chips per Wire connection */
 #define N_SENSOR_CHIPS 1
 
-/* todo: two banks of sensor chips, on different i2c buses */
+/* todo: two banks of sensor chips, on different i2c buses?  But the
+   Arduino does TWI partly in hardware, so natively it can only do one
+   I2C bus.  Perhaps I should just limit myself to 48 keys? */
 int MPR_addresses[N_SENSOR_CHIPS] = { 0x5A
 				      // , 0x5B, 0x5C, 0x5D
 };
 
+
 void
 setup() {
+#ifdef debug
+  debugSerial.begin(9600);
+#endif
   Serial.begin(115200);	   // The Bluetooth Mate defaults to 115200bps
-  Serial.print("$$$");	   // Enter command mode
-  delay(100);	    // Short delay, wait for the Mate to send back CMD
+  switch_to_command();	   /* must be done in the first 60 seconds */
+
+#if 0
+  /* was this for an earlier attempt at debugging?  It is mentioned on
+     https://learn.sparkfun.com/tutorials/using-the-bluesmirf/example-code-using-command-mode
+     but with no rationale */
   Serial.println("U,9600,N"); // Temporarily Change the baudrate to 9600, no parity
   Serial.begin(9600);	      // Start bluetooth serial at 9600
+#endif
 
+  /* Bluetooth module setup */
+  // https://www.sparkfun.com/datasheets/Wireless/Bluetooth/rn-bluetooth-um.pdf lists commands
+  // todo: enable sniff mode?
+  Serial.println("SN,vambracekeyboard");
+  expect("AOK");
+
+  /* todo: set up as bluetooth keyboard, which is based on USB HID */
+  /* see http://www.kobakant.at/DIY/?p=3310
+     see also http://www.adafruit.com/product/1535
+     and http://forum.arduino.cc/index.php?topic=18587.0
+  */
+
+  switch_to_data();
+  
   pinMode(irqpin, INPUT);
   digitalWrite(irqpin, HIGH);	// enable pullup resistor
 
@@ -52,12 +85,27 @@ setup() {
   for (int sensor = 0; sensor < N_SENSOR_CHIPS; sensor++) {
     setup_one_mpr121(MPR_addresses[sensor]);
   }
-
-  switch_to_SPP();
-
-  Serial.print("Finished setup\n");
-
+  
   pinMode(13, OUTPUT);
+
+#ifdef debug
+  debugSerial.print("Finished setup\n");
+#endif
+}
+
+int
+expect(char *expected) {
+  // wait for the Mate to send back CMD
+  while (*expected != '\0') {
+    while (Serial.available() == 0) {
+      /* do nothing */
+    }
+    if (Serial.read() != *expected) {
+      return 0;
+    }
+    expected++;
+  }
+  return 1;
 }
 
 static int in_command = 0;
@@ -66,7 +114,7 @@ void
 switch_to_command() {
   if (!in_command) {
     Serial.print("$$$\r");
-    in_command = 1;
+    in_command = expect("CMD");
   }
 }
 
@@ -74,7 +122,7 @@ void
 switch_to_data() {
   if (in_command) {
     Serial.print("---\r");
-    in_command = 0;
+    in_command = !expect("END");
   }
 }
 
@@ -107,24 +155,25 @@ loop(){
 void
 readTouchInputs() {
   if (!checkInterrupt()) {
-    for (int sensor = 0; sensor < N_SENSOR_CHIPS; sensor++) {
+    for (int sensor_chip = 0; sensor_chip < N_SENSOR_CHIPS; sensor_chip++) {
 
       // read the touch state from the MPR121
-      Wire.requestFrom(MPR_addresses[sensor], 2);
+      Wire.requestFrom(MPR_addresses[sensor_chip], 2);
 
       byte LSB = Wire.read();
       byte MSB = Wire.read();
 
       uint16_t touched = ((MSB << 8) | LSB); // 16 bits that make up the touch states
-      
+
       for (int electrode=0; electrode < 12; electrode++) {  // Check what electrodes were pressed
-	int key = (sensor * 12) + electrode;
+	int key = (sensor_chip * 12) + electrode;
 	if (touched & (1<<electrode)) {
 
 	  if (touchStates[key] == 0) {
 	    // key was just touched
+#ifdef debug
 	    Serial.print("key "); Serial.print(key); Serial.println(" was just touched\n");
-
+#endif
 	  } else if (touchStates[key] == 1) {
 	    // key is still being touched
 	  }
@@ -133,7 +182,9 @@ readTouchInputs() {
 	} else {
 	  if (touchStates[key] == 1) {
 	    // key is no longer being touched
+#ifdef debug
 	    Serial.print("key "); Serial.print(key); Serial.println(" is no longer being touched\n");
+#endif
 	  }
 	  touchStates[key] = 0;
 	}
