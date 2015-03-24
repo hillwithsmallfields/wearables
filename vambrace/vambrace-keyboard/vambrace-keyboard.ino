@@ -172,7 +172,7 @@ readTouchInputs() {
 	  if (touchStates[key] == 0) {
 	    // key was just touched
 #ifdef debug
-	    Serial.print("key "); Serial.print(key); Serial.println(" was just touched\n");
+	    debugSerial.print("key "); Serial.print(key); Serial.println(" was just touched\n");
 #endif
 	  } else if (touchStates[key] == 1) {
 	    // key is still being touched
@@ -183,7 +183,7 @@ readTouchInputs() {
 	  if (touchStates[key] == 1) {
 	    // key is no longer being touched
 #ifdef debug
-	    Serial.print("key "); Serial.print(key); Serial.println(" is no longer being touched\n");
+	    debugSerial.print("key "); Serial.print(key); Serial.println(" is no longer being touched\n");
 #endif
 	  }
 	  touchStates[key] = 0;
