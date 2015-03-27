@@ -21,16 +21,23 @@
  Public domain software from SparkFun also used in the base.
 */
 
-#define debug 1
+/* Bizarrely, this is needed to make the arduino compiler accept ifdefs */
+#if 1
+__asm volatile ("nop");
+#endif
+
+#define jcgs_debug 1
 
 #include "mpr121.h"
 /* todo: probably switch to http://todbot.com/blog/2010/09/25/softi2cmaster-add-i2c-to-any-arduino-pins */
 #include <Wire.h>
 
-#ifdef debug
+#include <Serial.h>
+
+#ifdef jcgs_debug
 #include <SoftwareSerial.h>
 
-SoftwareSerial debugSerial(10, 11); // RX, TX
+SoftwareSerial debugSerial(7, 8); // RX, TX
 #endif
 
 int irqpin = 2;  // Digital 2
@@ -47,51 +54,7 @@ int MPR_addresses[N_SENSOR_CHIPS] = { 0x5A
 };
 
 
-void
-setup() {
-#ifdef debug
-  debugSerial.begin(9600);
-#endif
-  Serial.begin(115200);	   // The Bluetooth Mate defaults to 115200bps
-  switch_to_command();	   /* must be done in the first 60 seconds */
-
-#if 0
-  /* was this for an earlier attempt at debugging?  It is mentioned on
-     https://learn.sparkfun.com/tutorials/using-the-bluesmirf/example-code-using-command-mode
-     but with no rationale */
-  Serial.println("U,9600,N"); // Temporarily Change the baudrate to 9600, no parity
-  Serial.begin(9600);	      // Start bluetooth serial at 9600
-#endif
-
-  /* Bluetooth module setup */
-  // https://www.sparkfun.com/datasheets/Wireless/Bluetooth/rn-bluetooth-um.pdf lists commands
-  // todo: enable sniff mode?
-  Serial.println("SN,vambracekeyboard");
-  expect("AOK");
-
-  /* todo: set up as bluetooth keyboard, which is based on USB HID */
-  /* see http://www.kobakant.at/DIY/?p=3310
-     see also http://www.adafruit.com/product/1535
-     and http://forum.arduino.cc/index.php?topic=18587.0
-  */
-
-  switch_to_data();
-  
-  pinMode(irqpin, INPUT);
-  digitalWrite(irqpin, HIGH);	// enable pullup resistor
-
-  Wire.begin();
-
-  for (int sensor = 0; sensor < N_SENSOR_CHIPS; sensor++) {
-    setup_one_mpr121(MPR_addresses[sensor]);
-  }
-  
-  pinMode(13, OUTPUT);
-
-#ifdef debug
-  debugSerial.print("Finished setup\n");
-#endif
-}
+static int in_command = 0;
 
 int
 expect(char *expected) {
@@ -107,8 +70,6 @@ expect(char *expected) {
   }
   return 1;
 }
-
-static int in_command = 0;
 
 void
 switch_to_command() {
@@ -153,6 +114,58 @@ loop(){
 }
 
 void
+setup() {
+  pinMode(13,OUTPUT);
+  digitalWrite(13, HIGH);
+#ifdef jcgs_debug
+  debugSerial.begin(9600);
+  debugSerial.print("Starting setup\n");
+#endif
+  Serial.begin(115200);	   // The Bluetooth Mate defaults to 115200bps
+  switch_to_command();	   /* must be done in the first 60 seconds */
+  digitalWrite(13, LOW);
+
+  /* This is for the modem setup
+     https://learn.sparkfun.com/tutorials/using-the-bluesmirf/example-code-using-command-mode
+     but with no rationale */
+  Serial.println("U,9600,N"); // Temporarily Change the baudrate to 9600, no parity
+  Serial.begin(9600);	      // Start bluetooth serial at 9600
+
+  /* Bluetooth module setup */
+  // https://www.sparkfun.com/datasheets/Wireless/Bluetooth/rn-bluetooth-um.pdf lists commands
+  // todo: enable sniff mode?
+  Serial.println("SN,vambracekeyboard");
+  expect("AOK");
+
+  /* todo: set up as bluetooth keyboard, which is based on USB HID */
+  /* see http://www.kobakant.at/DIY/?p=3310
+     see also http://www.adafruit.com/product/1535
+     and http://forum.arduino.cc/index.php?topic=18587.0
+  */
+
+  switch_to_SPP();
+  Serial.println("Test transmission");
+  switch_to_HID();
+  
+  switch_to_data();
+
+  pinMode(irqpin, INPUT);
+  digitalWrite(irqpin, HIGH);	// enable pullup resistor
+
+  Wire.begin();			/* A4 is SDA, A5 is SCL (http://arduino.cc/en/Main/arduinoBoardNano) */
+
+  for (int sensor = 0; sensor < N_SENSOR_CHIPS; sensor++) {
+    setup_one_mpr121(MPR_addresses[sensor]);
+  }
+  
+  digitalWrite(13, LOW);
+
+#ifdef jcgs_debug
+  debugSerial.print("Finished setup\n");
+#endif
+}
+
+void
 readTouchInputs() {
   if (!checkInterrupt()) {
     for (int sensor_chip = 0; sensor_chip < N_SENSOR_CHIPS; sensor_chip++) {
@@ -171,7 +184,7 @@ readTouchInputs() {
 
 	  if (touchStates[key] == 0) {
 	    // key was just touched
-#ifdef debug
+#ifdef jcgs_debug
 	    debugSerial.print("key "); Serial.print(key); Serial.println(" was just touched\n");
 #endif
 	  } else if (touchStates[key] == 1) {
@@ -182,7 +195,7 @@ readTouchInputs() {
 	} else {
 	  if (touchStates[key] == 1) {
 	    // key is no longer being touched
-#ifdef debug
+#ifdef jcgs_debug
 	    debugSerial.print("key "); Serial.print(key); Serial.println(" is no longer being touched\n");
 #endif
 	  }
