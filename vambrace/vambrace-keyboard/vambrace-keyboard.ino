@@ -26,7 +26,8 @@
 __asm volatile ("nop");
 #endif
 
-#define jcgs_debug 1
+#define JCGS_DEBUG 1
+#define DEBUG_BY_LED 1
 
 #include "mpr121.h"
 /* todo: probably switch to http://todbot.com/blog/2010/09/25/softi2cmaster-add-i2c-to-any-arduino-pins */
@@ -34,14 +35,56 @@ __asm volatile ("nop");
 
 #include <Serial.h>
 
-#ifdef jcgs_debug
+#ifdef JCGS_DEBUG
 #include <SoftwareSerial.h>
 
 SoftwareSerial debugSerial(7, 8); // RX, TX
 #endif
 
-int irqpin = 2;  // Digital 2
-boolean touchStates[12]; // to keep track of the previous touch states
+int debug_led_pin = 13;
+
+#ifdef DEBUG_BY_LED
+void
+debug_led(int count, int on, int off)
+{
+  int i;
+  for (i = 0; i < count; i++) {
+    delay(on * 100);
+    digitalWrite(debug_led_pin, HIGH);
+    delay(off * 100);
+    digitalWrite(debug_led_pin, LOW);
+  }
+}
+
+int bit_1;
+int bit_2;
+int bit_4;
+int bit_8;
+
+void
+status_digit_setup(b1, b2, b4, b8)
+{
+  bit_1 = b1;
+  bit_2 = b2;
+  bit_4 = b4;
+  bit_8 = b8;
+  pinMode(bit_1, OUTPUT);
+  pinMode(bit_2, OUTPUT);
+  pinMode(bit_4, OUTPUT);
+  pinMode(bit_8, OUTPUT);
+}
+
+void
+status_digit(int digit)
+{
+  digitalWrite(bit_1, digit & 1);
+  digitalWrite(bit_2, (digit >> 1) & 1);
+  digitalWrite(bit_4, (digit >> 2) & 1);
+  digitalWrite(bit_8, (digit >> 3) & 1);
+}
+#endif
+int irq_pin = 2;  // Digital 2
+boolean touch_states[12]; // to keep track of the previous touch states
 
 /* up to 4 chips per Wire connection */
 #define N_SENSOR_CHIPS 1
@@ -106,24 +149,31 @@ switch_to_HID() {
 void
 loop(){
   readTouchInputs();
-  if (touchStates[0] != 0) {
-    digitalWrite(13, HIGH);
+  if (touch_states[0] != 0) {
+    digitalWrite(debug_led_pin, HIGH);
   } else {
-    digitalWrite(13, LOW);
+    digitalWrite(debug_led_pin, LOW);
   }
 }
 
 void
 setup() {
-  pinMode(13,OUTPUT);
-  digitalWrite(13, HIGH);
-#ifdef jcgs_debug
+  pinMode(debug_led_pin,OUTPUT);
+  digitalWrite(debug_led_pin, HIGH);
+#ifdef JCGS_DEBUG
   debugSerial.begin(9600);
   debugSerial.print("Starting setup\n");
 #endif
+#ifdef DEBUG_BY_LED
+  status_digit_setup(9, 10, 11, 12);
+  status_digit(0);
+#endif
   Serial.begin(115200);	   // The Bluetooth Mate defaults to 115200bps
   switch_to_command();	   /* must be done in the first 60 seconds */
-  digitalWrite(13, LOW);
+  digitalWrite(debug_led_pin, LOW);
+#ifdef DEBUG_BY_LED
+  status_digit(1);
+#endif
 
   /* This is for the modem setup
      https://learn.sparkfun.com/tutorials/using-the-bluesmirf/example-code-using-command-mode
@@ -136,6 +186,9 @@ setup() {
   // todo: enable sniff mode?
   Serial.println("SN,vambracekeyboard");
   expect("AOK");
+#ifdef DEBUG_BY_LED
+  status_digit(2);
+#endif
 
   /* todo: set up as bluetooth keyboard, which is based on USB HID */
   /* see http://www.kobakant.at/DIY/?p=3310
@@ -146,22 +199,35 @@ setup() {
   switch_to_SPP();
   Serial.println("Test transmission");
   switch_to_HID();
+#ifdef DEBUG_BY_LED
+  status_digit(3);
+#endif
   
   switch_to_data();
 
-  pinMode(irqpin, INPUT);
-  digitalWrite(irqpin, HIGH);	// enable pullup resistor
+  pinMode(irq_pin, INPUT);
+  digitalWrite(irq_pin, HIGH);	// enable pullup resistor
 
   Wire.begin();			/* A4 is SDA, A5 is SCL (http://arduino.cc/en/Main/arduinoBoardNano) */
+#ifdef DEBUG_BY_LED
+  status_digit(4);
+#endif
 
   for (int sensor = 0; sensor < N_SENSOR_CHIPS; sensor++) {
     setup_one_mpr121(MPR_addresses[sensor]);
   }
-  
-  digitalWrite(13, LOW);
 
-#ifdef jcgs_debug
+#ifdef DEBUG_BY_LED
+  debug_led(4, 5, 5);
+#endif
+  
+  digitalWrite(debug_led_pin, LOW);
+  
+#ifdef JCGS_DEBUG
   debugSerial.print("Finished setup\n");
+#endif
+#ifdef DEBUG_BY_LED
+  status_digit(5);
 #endif
 }
 
@@ -182,24 +248,36 @@ readTouchInputs() {
 	int key = (sensor_chip * 12) + electrode;
 	if (touched & (1<<electrode)) {
 
-	  if (touchStates[key] == 0) {
+	  if (touch_states[key] == 0) {
 	    // key was just touched
-#ifdef jcgs_debug
+#ifdef DEBUG_BY_LED
+	    debug_by_led(3, 8, 2);
+#endif
+#ifdef DEBUG_BY_LED
+  status_digit(9);
+#endif
+#ifdef JCGS_DEBUG
 	    debugSerial.print("key "); Serial.print(key); Serial.println(" was just touched\n");
 #endif
-	  } else if (touchStates[key] == 1) {
+	  } else if (touch_states[key] == 1) {
 	    // key is still being touched
 	  }
 
-	  touchStates[key] = 1;
+	  touch_states[key] = 1;
 	} else {
-	  if (touchStates[key] == 1) {
+	  if (touch_states[key] == 1) {
 	    // key is no longer being touched
-#ifdef jcgs_debug
+#ifdef DEBUG_BY_LED
+	    debug_by_led(3, 2, 8);
+#endif
+#ifdef DEBUG_BY_LED
+  status_digit(8);
+#endif
+#ifdef JCGS_DEBUG
 	    debugSerial.print("key "); Serial.print(key); Serial.println(" is no longer being touched\n");
 #endif
 	  }
-	  touchStates[key] = 0;
+	  touch_states[key] = 0;
 	}
       }
     }
@@ -283,7 +361,7 @@ setup_one_mpr121(int address) {
 
 boolean
 checkInterrupt(void) {
-  return digitalRead(irqpin);
+  return digitalRead(irq_pin);
 }
 
 void
