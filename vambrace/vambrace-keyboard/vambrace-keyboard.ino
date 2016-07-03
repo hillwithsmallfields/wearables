@@ -45,7 +45,7 @@ int debug_led_pin = 13;
 
 #ifdef DEBUG_BY_LED
 void
-debug_led(int count, int on, int off)
+debug_by_flashing(int count, int on, int off)
 {
   int i;
   for (i = 0; i < count; i++) {
@@ -56,13 +56,14 @@ debug_led(int count, int on, int off)
   }
 }
 
+/* The pin used for each bit */
 int bit_1;
 int bit_2;
 int bit_4;
 int bit_8;
 
 void
-status_digit_setup(b1, b2, b4, b8)
+status_digit_setup(int b1, int b2, int b4, int b8)
 {
   bit_1 = b1;
   bit_2 = b2;
@@ -218,7 +219,7 @@ setup() {
   }
 
 #ifdef DEBUG_BY_LED
-  debug_led(4, 5, 5);
+  debug_by_flashing(4, 5, 5);
 #endif
   
   digitalWrite(debug_led_pin, LOW);
@@ -251,7 +252,7 @@ readTouchInputs() {
 	  if (touch_states[key] == 0) {
 	    // key was just touched
 #ifdef DEBUG_BY_LED
-	    debug_by_led(3, 8, 2);
+	    debug_by_flashing(3, 8, 2);
 #endif
 #ifdef DEBUG_BY_LED
   status_digit(9);
@@ -268,7 +269,7 @@ readTouchInputs() {
 	  if (touch_states[key] == 1) {
 	    // key is no longer being touched
 #ifdef DEBUG_BY_LED
-	    debug_by_led(3, 2, 8);
+	    debug_by_flashing(3, 2, 8);
 #endif
 #ifdef DEBUG_BY_LED
   status_digit(8);
