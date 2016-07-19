@@ -65,6 +65,7 @@ int bit_8;
 void
 status_digit_setup(int b1, int b2, int b4, int b8)
 {
+  /* todo: add enable strobe? */
   bit_1 = b1;
   bit_2 = b2;
   bit_4 = b4;
@@ -78,6 +79,7 @@ status_digit_setup(int b1, int b2, int b4, int b8)
 void
 status_digit(int digit)
 {
+  /* todo: use enable strobe? */
   digitalWrite(bit_1, digit & 1);
   digitalWrite(bit_2, (digit >> 1) & 1);
   digitalWrite(bit_4, (digit >> 2) & 1);
