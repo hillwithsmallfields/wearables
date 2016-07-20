@@ -57,33 +57,38 @@ debug_by_flashing(int count, int on, int off)
 }
 
 /* The pin used for each bit */
+int strobe_enable;
 int bit_1;
 int bit_2;
 int bit_4;
 int bit_8;
 
 void
-status_digit_setup(int b1, int b2, int b4, int b8)
+status_digit_setup(int str_en, int b1, int b2, int b4, int b8)
 {
-  /* todo: add enable strobe? */
+  strobe_enable = str_en;
   bit_1 = b1;
   bit_2 = b2;
   bit_4 = b4;
   bit_8 = b8;
+  pinMode(strobe_enable, OUTPUT);
   pinMode(bit_1, OUTPUT);
   pinMode(bit_2, OUTPUT);
   pinMode(bit_4, OUTPUT);
   pinMode(bit_8, OUTPUT);
+  digitalWrite(strobe_enable, 1);
 }
 
 void
 status_digit(int digit)
 {
-  /* todo: use enable strobe? */
   digitalWrite(bit_1, digit & 1);
   digitalWrite(bit_2, (digit >> 1) & 1);
   digitalWrite(bit_4, (digit >> 2) & 1);
   digitalWrite(bit_8, (digit >> 3) & 1);
+  digitalWrite(strobe_enable, 0);
+  delay(1);
+  digitalWrite(strobe_enable, 1);
 }
 #endif
 int irq_pin = 2;  // Digital 2
@@ -168,14 +173,28 @@ setup() {
   debugSerial.print("Starting setup\n");
 #endif
 #ifdef DEBUG_BY_LED
-  status_digit_setup(9, 10, 11, 12);
+  status_digit_setup(8, 9, 10, 11, 12);
   status_digit(0);
+  {
+    int i;
+    for (i = 9; i >= 0; i--) {
+      status_digit(i);
+      delay(300);
+    }
+  }
 #endif
   Serial.begin(115200);	   // The Bluetooth Mate defaults to 115200bps
+#ifdef DEBUG_BY_LED
+  status_digit(2);
+#endif
+  /* debugging: if this is in, the debug digit stays on 2; if it's commented out, it goes through to 4 */
   switch_to_command();	   /* must be done in the first 60 seconds */
+#ifdef DEBUG_BY_LED
+  status_digit(3);
+#endif
   digitalWrite(debug_led_pin, LOW);
 #ifdef DEBUG_BY_LED
-  status_digit(1);
+  status_digit(4);
 #endif
 
   /* This is for the modem setup
